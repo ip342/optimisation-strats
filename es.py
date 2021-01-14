@@ -1,5 +1,6 @@
 import numpy as np
 import random
+import time
 import matplotlib.pyplot as plt
 from matplotlib import animation
 
@@ -25,16 +26,16 @@ def obj_f2(x):
 def mutate(x, sig, alph, lamb, n, lims):
     """
     ARGUMENTS
-        x    :
-        sig  :
-        alph :
+        x    : generation locations
+        sig  : generation standard deviations
+        alph : generation rotation angles
         lamb : number of offspring created in each iteration
         n    : number of control variables
         lims : bounds of the optimisation function in form [min, max]
     OUTPUTS
-        x_mut    :
-        sig_mut  :
-        alph_mut :
+        x_mut    : mutated generation locations
+        sig_mut  : mutated generation standard deviations
+        alph_mut : mutated generation rotation angles
     """
 
     # initialise control parameters as per schwefel 1995
@@ -76,16 +77,16 @@ def mutate(x, sig, alph, lamb, n, lims):
 def recomb(x, sig, alph, lamb, mu, n):
     """
     ARGUMENTS
-        x    :
-        sig  :
-        alph :
+        x    : generation locations
+        sig  : generation standard deviations
+        alph : generation rotation angles
         lamb : number of offspring created in each iteration
         mu   : number of parents
         n    : number of control variables
     OUTPUTS
-        x_re    :
-        sig_re  :
-        alph_re :
+        x_re    : recombined generation locations
+        sig_re  : recombined generation standard deviations
+        alph_re : recombined generation rotation angles
     """
 
     # discrete recombination for control variables
@@ -107,8 +108,29 @@ def recomb(x, sig, alph, lamb, mu, n):
     return x_re, sig_re, alph_re
 
 
-def selection(f, x, sig, alph, mu):
-    """ assume (λ,μ) selection for now """
+def selection(f, x, sig, alph, mu, x_p=None, sig_p=None, alph_p=None, scheme='comma'):
+    """
+    ARGUMENTS
+        f      : objective function
+        x      : generation locations
+        sig    : generation standard deviations
+        alph   : generation rotation angles
+        mu     : number of parents
+        scheme : selection scheme, choose from:
+                    comma - selection is from newly generated offsprint
+                    plus - selection is from offspring and parent population
+    OUTPUTS
+        x_sel    : selected locations for next generation parents
+        sig_sel  : selected generation standard deviations
+        alph_sel : selected generation rotation angles
+        f_sel    : objective function evaluated for x_sel
+    """
+
+    if scheme == 'plus':
+        # join offspring and previous parents into one array
+        x = np.concatenate((x, x_p), axis=0)
+        sig = np.concatenate((sig, sig_p), axis=0)
+        alph = np.concatenate((alph, alph_p), axis=0)
 
     # evaluate fitness function of all offspring
     f_x = {i: f(x[i]) for i in range(len(x))}
@@ -123,7 +145,7 @@ def selection(f, x, sig, alph, mu):
     return x_sel, sig_sel, alph_sel, f_sel
 
 
-def evo_strat(f, lamb, mu, n, lims, max_it):
+def evo_strat(f, lamb, mu, n, lims, max_it, runtime, scheme):
     """
     ARGUMENTS
         f      : objective function
@@ -132,23 +154,35 @@ def evo_strat(f, lamb, mu, n, lims, max_it):
         n      : dimension of objective function
         lims   : bounds of the optimisation function in form [min, max]
         max_it : max number of iterations
+        runtime : value to limit function runtime to in seconds
+        scheme : selection scheme, choose from:
+                    comma - selection is from newly generated offsprint
+                    plus - selection is from offspring and parent population
     OUTPUTS
-        x_opt  :
-        f_opt  :
-        x_hist :
-        f_hist :
+        f_opt      : minimum objective function value reached
+        x_opt      : location of minimum objective function
+        f_opt_hist : best objective function obtained at every generation
+        x_hist     : generation history of parent/offspring locations
+        iters      : number of total generations evaluated in runtime
     """
+
+    # start timing function
+    start = time.time()
+
     # create empty arrays for history of each variable over max iterations
     x_hist = np.zeros((max_it, lamb, n))
     f_hist = np.zeros((max_it, lamb))
+    f_opt_hist = np.zeros(max_it)
     sig_hist = np.zeros((max_it, lamb, n))
     alph_hist = np.zeros((max_it, lamb, n, n))
 
     # initialise first generation randomly
     x_hist[0] = np.random.uniform(lims[0], lims[1], size=(lamb, n))  # within feasible region
     f_hist[0] = [f(x) for x in x_hist[0]]
+    f_opt_hist[0] = np.min(f_hist[0])
     sig_hist[0] = np.random.random(size=(lamb, n))  # within [0, 1]
     alph_hist[0] = np.random.uniform(-np.pi*4, np.pi*4, size=(lamb, n, n))  # within +- pi/4
+    iters = [0]  # empty array for iteration numbers
 
     # perform first found of selection and find optimal obj f and x
     x_sel, sig_sel, alph_sel, f_sel = selection(f, x_hist[0], sig_hist[0], alph_hist[0], mu)
@@ -157,6 +191,10 @@ def evo_strat(f, lamb, mu, n, lims, max_it):
 
     for i in range(1, max_it):  # start at 1 as first gen already initialised
 
+        # run for specified time
+        if time.time() - start > runtime:
+            break
+
         # recombination of parameters
         x_re, sig_re, alph_re = recomb(x_sel, sig_sel, alph_sel, lamb, mu, n)
 
@@ -164,13 +202,18 @@ def evo_strat(f, lamb, mu, n, lims, max_it):
         x_hist[i], sig_hist[i], alph_hist[i] = mutate(x_re, sig_re, alph_re, lamb, n, lims)
 
         # select members for next gen
-        x_sel, sig_sel, alph_sel, f_sel = selection(f, x_hist[i], sig_hist[i], alph_hist[i], mu)
+        x_sel, sig_sel, alph_sel, f_sel = selection(f, x_hist[i], sig_hist[i], alph_hist[i], mu, x_sel, sig_sel, alph_sel, scheme)
+
+        # record best achieved value for generation
+        f_opt_hist[i] = f_sel[0]
 
         if f_sel[0] < f_opt:
             f_opt = f_sel[0]
             x_opt = x_sel[0]
 
-    return f_opt, x_opt, x_hist, f_hist
+        iters.append(i)
+
+    return f_opt, x_opt, f_opt_hist, x_hist, iters
 
 
 def visualize(func, history, lims, minima):
@@ -224,8 +267,11 @@ def visualize(func, history, lims, minima):
     plt.show()
 
 
-lims = [-2, 2]
-minima = [1, 1]
-a, b, x_hist, f_hist = evo_strat(obj_f, lamb=100, mu=15, n=4, lims=lims, max_it=100)
+# lims = [-2, 2]
+# minima = [1, 1]
+# f, x, f_hist, x_hist, iters = evo_strat(obj_f, lamb=100, mu=15, n=4, lims=lims, max_it=100, runtime=0.25, scheme='comma')
+# print(f, iters)
+# f, x, f_hist, x_hist, iters = evo_strat(obj_f, lamb=100, mu=15, n=4, lims=lims, max_it=100, runtime=0.5, scheme='comma')
+# print(f, iters)
 
-visualize(obj_f, x_hist, lims, minima)
+#visualize(obj_f, x_hist, lims, minima)

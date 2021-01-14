@@ -1,5 +1,6 @@
 import numpy as np
 import random
+import time
 import matplotlib.pyplot as plt
 from matplotlib import animation
 
@@ -145,31 +146,44 @@ def evaluate(f, p_cur, p_bests, top):
         return p_bests, l_bests, g_best, fg_best
 
 
-def pso(f, p_num, v_max, n, lims, max_it, top='g'):
+def pso(f, p_num, v_max, n, lims, max_it, runtime, top='g'):
     """
     ARGUMENTS
-        f      : objective function
-        p_num  : swarm size
-        v_max  : maximum velocity of an individual
-        n      : dimension of function
-        lims   : bounds of the optimisation function in form [min, max]
-        max_it : max number of iterations
-        top    : neighbourhood topology, choose from:
-                    g - global
-                    r - ring
-                    w - wheel
-    OUTPUTS
-        p_hist : particle locations for each iteration
+        f       : objective function
+        p_num   : swarm size
+        v_max   : maximum velocity of an individual
+        n       : dimension of function
+        lims    : bounds of the optimisation function in form [min, max]
+        max_it  : max number of iterations
+        runtime : value to limit function runtime to in seconds
+        top     : neighbourhood topology, choose from:
+                     g - global
+                     r - ring
+                     w - wheel
+    OUTPUT
+        f_opt        : minimum objective function value reached
+        g_opt        : location of global minimum found
+        p_hist       : particle locations for each iteration
+        f_hist       : objective function evaluated for every particle 
+        fg_best_hist : best objective function obtained at every iteration 
+        iters        : array of total iterations completed in runtime
     """
+
+    # begin timing function
+    start = time.time()
+
     p_hist = np.zeros((max_it, p_num, n))  # particle positions
     v_hist = np.zeros((max_it, p_num, n))  # particle velocities
+    f_hist = np.zeros((max_it, p_num))  # objective function value for every particle
     l_bests_hist = np.zeros((max_it, p_num, n))  # local best position for each particle
     g_best_hist = np.zeros((max_it, n))  # global best particles
     fg_best_hist = np.zeros(max_it)  # global best values
+    iters = [0]  # empty array for iteration numbers
 
     # initialise particles randomly
     p_hist[0] = np.random.uniform(lims[0], lims[1], size=(p_num, n))  # within feasible region
     v_hist[0] = np.random.uniform(lims[0], lims[1], size=(p_num, n))
+    f_hist[0] = np.array([f(x) for x in p_hist[0]])
 
     # evaluate initial particles
     p_bests = p_hist[0]  # personal best locations
@@ -178,8 +192,14 @@ def pso(f, p_num, v_max, n, lims, max_it, top='g'):
     elif top == 'r' or 'w':
         p_bests, l_bests_hist[0], g_best_hist[0], fg_best_hist[0] = evaluate(f, p_hist[0], p_bests, top)
 
-    # iterate for specified number of iterations
+
+    # limit to maximum number of iterations
     for i in range(max_it-1):
+
+        # run for specified time
+        if time.time() - start > runtime:
+            break
+
         if top == 'g':
             p_hist[i+1] = update(f, p_hist[i], v_hist[i], g_best_hist[i], p_bests, v_max, lims, top)
             p_bests, g_best_hist[i+1], fg_best_hist[i+1] = evaluate(f, p_hist[i+1], p_bests, top)
@@ -188,13 +208,19 @@ def pso(f, p_num, v_max, n, lims, max_it, top='g'):
             p_hist[i+1] = update(f, p_hist[i], v_hist[i], l_bests_hist[i], p_bests, v_max, lims, top)
             p_bests, l_bests_hist[i+1], g_best_hist[i+1], fg_best_hist[i+1] = evaluate(f, p_hist[i+1], p_bests, top)
 
-    return p_hist
+        f_hist[i+1] = np.array([f(x) for x in p_hist[i+1]])
+        iters.append(i+1)
+
+    f_opt = np.min(fg_best_hist)
+    g_opt = g_best_hist[np.argmin(fg_best_hist)]
+
+    return f_opt, g_opt, p_hist, f_hist, fg_best_hist, iters
 
 
 def visualize(f, history, lims, minima):
     """Visualize the process of optimizing
     ARGUMENTS
-        func    : object function
+        func    : objective function
         history : object returned from pso above
         lims    : bounds of objective function
         minima  : minima to display on plot
@@ -242,7 +268,39 @@ def visualize(f, history, lims, minima):
     plt.show()
 
 
-lims = [-512, 512]
-minima = [-488.6326, 512]
-history = pso(obj_f2, 200, 50, 2, lims, 50, top='g')
-visualize(obj_f2, history, lims, minima)
+lims = [-500, 500]
+minima = [-300.3376,  500]
+#v_max generally should be 10% of lims[1] - lims[0]
+# f_opt, g_opt, history, iters = pso(obj_f2, p_num=200, v_max=200, n=2, lims=lims, max_it=100, runtime=0.5, top='g')
+# print(f_opt, g_opt, iters)
+#visualize(obj_f2, history, lims, minima)
+
+
+# # define meshgrid according to given boundaries
+# x = np.linspace(lims[0], lims[1], 50)
+# y = np.linspace(lims[0], lims[1], 50)
+# X, Y = np.meshgrid(x, y)
+# Z = np.array([obj_f2([x, y]) for x, y in zip(X, Y)])
+
+# # initialize figure
+# fig = plt.figure(figsize=(13, 6))
+# ax1 = fig.add_subplot(122, facecolor='w', projection="3d")
+# ax2 = fig.add_subplot(121, facecolor='w')
+
+# # plot contour and 3d surface
+# surf = ax1.plot_surface(X, Y, Z, cmap="inferno", linewidth=0, antialiased=True)
+# contour = ax2.contour(X, Y, Z, levels=10, cmap="magma")
+
+# ax2.set_xlim(lims[0]-50, lims[1]+50)
+# ax2.set_ylim(lims[0]-50, lims[1]+50)
+# ax2.plot(minima[0], minima[1], marker='o', color='black')
+
+# ax1.set_xlabel('X1')
+# ax1.set_ylabel('X2')
+# ax1.set_zlabel('f(X1, X2)')
+
+# ax2.set_xlabel('X1')
+# ax2.set_ylabel('X2')
+
+# plt.savefig('2D_Rana.png')
+# plt.show()
