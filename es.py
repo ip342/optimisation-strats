@@ -200,6 +200,7 @@ def evo_strat(f, lamb, mu, n, lims, max_it, runtime, scheme):
 
         # create next gen by mutation
         x_hist[i], sig_hist[i], alph_hist[i] = mutate(x_re, sig_re, alph_re, lamb, n, lims)
+        f_hist[i] = [f(x) for x in x_hist[i]]
 
         # select members for next gen
         x_sel, sig_sel, alph_sel, f_sel = selection(f, x_hist[i], sig_hist[i], alph_hist[i], mu, x_sel, sig_sel, alph_sel, scheme)
@@ -213,14 +214,14 @@ def evo_strat(f, lamb, mu, n, lims, max_it, runtime, scheme):
 
         iters.append(i)
 
-    return f_opt, x_opt, f_opt_hist, x_hist, iters
+    return f_opt, x_opt, f_opt_hist, x_hist, f_hist, iters
 
 
 def visualize(func, history, lims, minima):
     """Visualize the process of optimizing
     ARGUMENTS
         func    : object function
-        history : object returned from evo_strat above
+        history : particle history object returned from evo_strat above
         lims    : bounds of objective function
         minima  : minima to display on plot
     """
@@ -267,11 +268,89 @@ def visualize(func, history, lims, minima):
     plt.show()
 
 
-# lims = [-2, 2]
-# minima = [1, 1]
-# f, x, f_hist, x_hist, iters = evo_strat(obj_f, lamb=100, mu=15, n=4, lims=lims, max_it=100, runtime=0.25, scheme='comma')
-# print(f, iters)
-# f, x, f_hist, x_hist, iters = evo_strat(obj_f, lamb=100, mu=15, n=4, lims=lims, max_it=100, runtime=0.5, scheme='comma')
-# print(f, iters)
+def screenshot(f, history, lims, minima, f_best_hist, i):
+    """Visualize the process of optimizing through evenly spaced screenshots of iterations
+    ARGUMENTS
+        f           : objective function
+        history     : history of particle locations for each iteration
+        lims        : bounds of objective function
+        minima      : minima to display on plot
+        f_best_hist : history of minimum obj func value for each iteration
+        i           : array of total iterations
+    """
+    # define meshgrid according to given boundaries
+    x = np.linspace(lims[0], lims[1], 50)
+    y = np.linspace(lims[0], lims[1], 50)
+    X, Y = np.meshgrid(x, y)
+    Z = np.array([f([x, y]) for x, y in zip(X, Y)])
+
+    # initialize figure
+    fig = plt.figure(figsize=(10, 10))
+    ax1 = fig.add_subplot(221, facecolor='w')
+    ax2 = fig.add_subplot(222, facecolor='w')
+    ax3 = fig.add_subplot(223, facecolor='w')
+    ax4 = fig.add_subplot(224, facecolor='w')
+
+    # contour and global minimum
+    contour1 = ax1.contourf(X, Y, Z, levels=7, cmap="inferno")
+    contour2 = ax2.contourf(X, Y, Z, levels=7, cmap="inferno")
+    contour3 = ax3.contourf(X, Y, Z, levels=7, cmap="inferno")
+    contour4 = ax4.contourf(X, Y, Z, levels=7, cmap="inferno")
+    ax1.plot(minima[0], minima[1], marker='o', color='black')
+    ax2.plot(minima[0], minima[1], marker='o', color='black')
+    ax3.plot(minima[0], minima[1], marker='o', color='black')
+    ax4.plot(minima[0], minima[1], marker='o', color='black')
+
+    # evenly space the iterations to show
+    a, b, c, d = 0, (i[-1])//3, 2*(i[-1])//3, i[-1]
+    # graph titles
+    ax1.set_title('iteration={} | f_min=({:.3f})'.format(a+1, f_best_hist[a]))
+    ax2.set_title('iteration={} | f_min=({:.3f})'.format(b+1, f_best_hist[b]))
+    ax3.set_title('iteration={} | f_min=({:.3f})'.format(c+1, f_best_hist[c]))
+    ax4.set_title('iteration={} | f_min=({:.3f})'.format(d+1, f_best_hist[d]))
+
+    # axes limits
+    ax1.set_xlim(lims[0]-50, lims[1]+50), ax1.set_ylim(lims[0]-50, lims[1]+50)
+    ax2.set_xlim(lims[0]-50, lims[1]+50), ax2.set_ylim(lims[0]-50, lims[1]+50)
+    ax3.set_xlim(lims[0]-50, lims[1]+50), ax3.set_ylim(lims[0]-50, lims[1]+50)
+    ax4.set_xlim(lims[0]-50, lims[1]+50), ax4.set_ylim(lims[0]-50, lims[1]+50)
+
+    # data to be plot
+    data1 = history[a]
+    # data to be plot
+    data2 = history[b]
+    # data to be plot
+    data3 = history[c]
+    # data to be plot
+    data4 = history[d]
+
+    # plot particles
+    ax1.scatter(data1[:, 0], data1[:, 1], marker='x', color='black')
+    for i in range(data1.shape[0]):
+        ax1.plot(data1[i][0], data1[i][1], marker='x', color='black')
+
+    # plot particles
+    ax2.scatter(data2[:, 0], data2[:, 1], marker='x', color='black')
+    for i in range(data2.shape[0]):
+        ax2.plot(data2[i][0], data2[i][1], marker='x', color='black')
+
+    # plot particles
+    ax3.scatter(data3[:, 0], data3[:, 1], marker='x', color='black')
+    for i in range(data3.shape[0]):
+        ax3.plot(data3[i][0], data3[i][1], marker='x', color='black')
+
+    # plot particles
+    ax4.scatter(data4[:, 0], data4[:, 1], marker='x', color='black')
+    for i in range(data4.shape[0]):
+        ax4.plot(data4[i][0], data4[i][1], marker='x', color='black')
+
+    plt.savefig('2D_es.png')
+    plt.show()
+
+
+lims = [-500, 500]
+minima = [-300.3376,  500]
+# f_opt, x_opt, f_opt_hist, x_hist, iters = evo_strat(obj_f2, lamb=100, mu=15, n=2, lims=lims, max_it=100, runtime=0.2, scheme='plus')
+# screenshot(obj_f2, x_hist, lims, minima, f_opt_hist, iters)
 
 #visualize(obj_f, x_hist, lims, minima)

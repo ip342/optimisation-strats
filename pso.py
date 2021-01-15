@@ -42,8 +42,8 @@ def update(f, p_cur, v_cur, gl_best, p_bests, v_max, lims, top):
 
     # constants
     w = 0.5
-    c1 = 1.3
-    c2 = 2.8
+    c1 = 2
+    c2 = 2
 
     for i in range(len(p_cur)):
         # find accelerations
@@ -218,10 +218,10 @@ def pso(f, p_num, v_max, n, lims, max_it, runtime, top='g'):
 
 
 def visualize(f, history, lims, minima):
-    """Visualize the process of optimizing
+    """Visualize the process of optimizing through an animation
     ARGUMENTS
         func    : objective function
-        history : object returned from pso above
+        history : particle history object returned from pso above
         lims    : bounds of objective function
         minima  : minima to display on plot
     """
@@ -245,8 +245,7 @@ def visualize(f, history, lims, minima):
         ax1.set_xlabel('X1')
         ax1.set_ylabel('X2')
 
-        ax1.set_xlim(lims[0]-50, lims[1]+50)
-        ax1.set_ylim(lims[0]-50, lims[1]+50)
+        ax1.set_xlim(lims[0]-50, lims[1]+50), ax1.set_ylim(lims[0]-50, lims[1]+50)
 
         # data to be plot
         data = history[frame]
@@ -261,6 +260,7 @@ def visualize(f, history, lims, minima):
         for i in range(data.shape[0]):
             ax1.plot(data[i][0], data[i][1], marker='x', color='black')
 
+
     ani = animation.FuncAnimation(fig, animate, fargs=(history,),
                                   frames=history.shape[0],
                                   interval=250)
@@ -268,14 +268,94 @@ def visualize(f, history, lims, minima):
     plt.show()
 
 
+def screenshot(f, history, lims, minima, f_best_hist, i):
+    """Visualize the process of optimizing through evenly spaced screenshots of iterations
+    ARGUMENTS
+        f           : objective function
+        history     : history of particle locations for each iteration
+        lims        : bounds of objective function
+        minima      : minima to display on plot
+        f_best_hist : history of minimum obj func value for each iteration
+        i           : array of total iterations
+    """
+    # define meshgrid according to given boundaries
+    x = np.linspace(lims[0], lims[1], 50)
+    y = np.linspace(lims[0], lims[1], 50)
+    X, Y = np.meshgrid(x, y)
+    Z = np.array([f([x, y]) for x, y in zip(X, Y)])
+
+    # initialize figure
+    fig = plt.figure(figsize=(10, 10))
+    ax1 = fig.add_subplot(221, facecolor='w')
+    ax2 = fig.add_subplot(222, facecolor='w')
+    ax3 = fig.add_subplot(223, facecolor='w')
+    ax4 = fig.add_subplot(224, facecolor='w')
+
+    # contour and global minimum
+    contour1 = ax1.contourf(X, Y, Z, levels=7, cmap="inferno")
+    contour2 = ax2.contourf(X, Y, Z, levels=7, cmap="inferno")
+    contour3 = ax3.contourf(X, Y, Z, levels=7, cmap="inferno")
+    contour4 = ax4.contourf(X, Y, Z, levels=7, cmap="inferno")
+    ax1.plot(minima[0], minima[1], marker='o', color='black')
+    ax2.plot(minima[0], minima[1], marker='o', color='black')
+    ax3.plot(minima[0], minima[1], marker='o', color='black')
+    ax4.plot(minima[0], minima[1], marker='o', color='black')
+
+    # evenly space the iterations to show
+    a, b, c, d = 0, (i[-1])//3, 2*(i[-1])//3, i[-1]
+
+    # graph titles
+    ax1.set_title('iteration={} | f_min=({:.3f})'.format(a+1, f_best_hist[a]))
+    ax2.set_title('iteration={} | f_min=({:.3f})'.format(b+1, f_best_hist[b]))
+    ax3.set_title('iteration={} | f_min=({:.3f})'.format(c+1, f_best_hist[c]))
+    ax4.set_title('iteration={} | f_min=({:.3f})'.format(d+1, f_best_hist[d]))
+
+    # axes limits
+    ax1.set_xlim(lims[0]-50, lims[1]+50), ax1.set_ylim(lims[0]-50, lims[1]+50)
+    ax2.set_xlim(lims[0]-50, lims[1]+50), ax2.set_ylim(lims[0]-50, lims[1]+50)
+    ax3.set_xlim(lims[0]-50, lims[1]+50), ax3.set_ylim(lims[0]-50, lims[1]+50)
+    ax4.set_xlim(lims[0]-50, lims[1]+50), ax4.set_ylim(lims[0]-50, lims[1]+50)
+
+    # data to be plot
+    data1 = history[a]
+    # data to be plot
+    data2 = history[b]
+    # data to be plot
+    data3 = history[c]
+    # data to be plot
+    data4 = history[d]
+
+    # plot particles
+    ax1.scatter(data1[:, 0], data1[:, 1], marker='x', color='black')
+    for i in range(data1.shape[0]):
+        ax1.plot(data1[i][0], data1[i][1], marker='x', color='black')
+
+    # plot particles
+    ax2.scatter(data2[:, 0], data2[:, 1], marker='x', color='black')
+    for i in range(data2.shape[0]):
+        ax2.plot(data2[i][0], data2[i][1], marker='x', color='black')
+
+    # plot particles
+    ax3.scatter(data3[:, 0], data3[:, 1], marker='x', color='black')
+    for i in range(data3.shape[0]):
+        ax3.plot(data3[i][0], data3[i][1], marker='x', color='black')
+
+    # plot particles
+    ax4.scatter(data4[:, 0], data4[:, 1], marker='x', color='black')
+    for i in range(data4.shape[0]):
+        ax4.plot(data4[i][0], data4[i][1], marker='x', color='black')
+
+    plt.savefig('2D_pso.png')
+    plt.show()
+
+
 lims = [-500, 500]
 minima = [-300.3376,  500]
-#v_max generally should be 10% of lims[1] - lims[0]
-# f_opt, g_opt, history, iters = pso(obj_f2, p_num=200, v_max=200, n=2, lims=lims, max_it=100, runtime=0.5, top='g')
-# print(f_opt, g_opt, iters)
-#visualize(obj_f2, history, lims, minima)
 
+# f_opt, g_opt, p_hist, f_hist, fg_best_hist, iters = pso(obj_f2, p_num=100, v_max=200, n=2, lims=lims, max_it=100, runtime=0.2, top='g')
+# screenshot(obj_f2, p_hist, lims, minima, fg_best_hist, iters)
 
+"""Plot of 2D Ranas Function"""
 # # define meshgrid according to given boundaries
 # x = np.linspace(lims[0], lims[1], 50)
 # y = np.linspace(lims[0], lims[1], 50)
