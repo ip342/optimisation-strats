@@ -17,24 +17,27 @@ def obj_f(x):
     return f
 
 
-# """PSO"""
+"""PSO"""
 
+# parameters
 lims = [-500, 500]
-p_num = 200
-v_max = 200
+p_num = 2000
+v_max = 1000
 n = 5
 max_it = 100
 
 f_opts = []
 dis_solns = []
+
+# take averages over 100 runs
 for i in range(100):
 
-    f_opt, g_opt, p_hist, f_hist, f_opt_hist, pso_iters = pso(obj_f, p_num=p_num, v_max=v_max, n=n, lims=lims, max_it=max_it, runtime=0.5, top='g')
+    f_opt, g_opt, p_hist, f_hist, f_opt_hist, pso_iters = pso(obj_f, p_num=p_num, v_max=v_max, n=n, lims=lims, max_it=max_it, runtime=0.25, top='g')
 
     # get rid of zero values for iterations not reached
     f_opt_hist = f_opt_hist[f_opt_hist != 0]
 
-    # find 15 dissimilar solutions
+    # # find 15 dissimilar solutions
     f_hist = f_hist.flatten()
     p_hist = np.reshape(p_hist, (p_num*max_it, n))
     f_x = {i: f_hist[i] for i in range(p_num*max_it)}
@@ -44,9 +47,9 @@ for i in range(100):
 
     for f in f_sort:
         for g in dis_archive:
-            if len(dis_archive) >= 15:
+            if len(dis_archive) >= 15:  # stop when archive is full
                 break
-            if np.linalg.norm(p_hist[f[0]] - g[1]) > 200:  # D_min=100
+            if np.linalg.norm(p_hist[f[0]] - g[1]) > 200:  # D_min=200
                 dis_archive.append([f[1], p_hist[f[0]]])
                 dis_solns.append(f[1])
                 break
@@ -57,28 +60,28 @@ for i in range(100):
 print('Min f mean = ', np.mean(f_opts))
 print('Min f stdv = ', np.std(f_opts))
 print('Dis solns mean = ', np.mean(dis_solns))
-# fig = plt.figure(figsize=(6,6))
-# ax1 = fig.add_subplot(111, facecolor='w')
-# plt.plot(pso_iters, f_opt_hist)
-# plt.plot(es_iters, f_hist)
-# plt.show()
+
 
 """EVO STRAT"""
 
+# parameters
 lims = [-500, 500]
 lamb = 200
-mu = 10
+mu = 15
 n = 5
 max_it = 100
 
 f_opts = []
 dis_solns = []
+
+# take averages over 100 runs
 for i in range(100):
 
-    f_opt, x_opt, f_opt_hist, x_hist, f_hist, iters = evo_strat(obj_f, lamb=lamb, mu=mu, n=n, lims=lims, max_it=max_it, runtime=0.5, scheme='comma')
+    f_opt, x_opt, f_opt_hist, x_hist, f_hist, iters = evo_strat(obj_f, lamb=lamb, mu=mu, n=n, lims=lims, max_it=max_it, runtime=0.25, scheme='plus')
 
     # get rid of zero values for iterations not reached
     f_opt_hist = f_opt_hist[f_opt_hist != 0]
+
     # find 15 dissimilar solutions
     f_hist = f_hist.flatten()
     x_hist = np.reshape(x_hist, (lamb*max_it, n))
@@ -89,9 +92,9 @@ for i in range(100):
 
     for f in f_sort:
         for g in dis_archive:
-            if len(dis_archive) >= 15:
+            if len(dis_archive) >= 15:  # stop when archive is full
                 break
-            if np.linalg.norm(x_hist[f[0]] - g[1]) > 200:  # D_min=100
+            if np.linalg.norm(x_hist[f[0]] - g[1]) > 200:  # D_min=200
                 dis_archive.append([f[1], x_hist[f[0]]])
                 dis_solns.append(f[1])
                 break

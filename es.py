@@ -23,128 +23,6 @@ def obj_f2(x):
     return x[0]*np.sin(a)*np.cos(b) + (x[1]+1)*np.cos(a)*np.sin(b)
 
 
-def mutate(x, sig, alph, lamb, n, lims):
-    """
-    ARGUMENTS
-        x    : generation locations
-        sig  : generation standard deviations
-        alph : generation rotation angles
-        lamb : number of offspring created in each iteration
-        n    : number of control variables
-        lims : bounds of the optimisation function in form [min, max]
-    OUTPUTS
-        x_mut    : mutated generation locations
-        sig_mut  : mutated generation standard deviations
-        alph_mut : mutated generation rotation angles
-    """
-
-    # initialise control parameters as per schwefel 1995
-    tau = 1/(2*(n)**0.5)**0.5
-    tau_dash = 1/(2*n)**0.5
-    beta = 0.0873
-
-    # mutation of strategy variables
-    sig_mut = sig * np.exp(tau_dash*np.random.randn(lamb, 1) +
-                           tau*np.random.randn(lamb, n)) # different sized random 
-                                                         # variable arrays are added by broadcasting
-    alph_mut = alph + beta*np.random.randn(lamb, n, n)
-
-    # full covariance matrix is created from mutated alph and sig
-    cov = np.zeros((lamb, n, n))
-    for i in range(lamb):
-        for j in range(n):
-            for k in range(n):
-                if j == k:
-                    a = sig_mut[i][j]**2
-                else:
-                    a = (np.tan(2*alph_mut[i][j][k]) * (sig_mut[i][j]**2 - sig_mut[i][k]**2)) / 2
-                cov[i][j][k] = a
-
-    # diagonal covariance matrix created from mutated sig
-    # cov = np.zeros((lamb, n, n))
-    # for i in range(lamb):
-    #     cov[i] = np.diag(sig_mut[i]**2)
-
-    # create mutated offspring
-    n = np.array([np.random.multivariate_normal(np.zeros(n), cov[i]) for i in range(lamb)])
-
-    x_mut = np.clip(x+n, lims[0], lims[1])  # clip to be within feasible region
-                                   # (-2, 2) chosen for rosenbrook
-
-    return x_mut, sig_mut, alph_mut
-
-
-def recomb(x, sig, alph, lamb, mu, n):
-    """
-    ARGUMENTS
-        x    : generation locations
-        sig  : generation standard deviations
-        alph : generation rotation angles
-        lamb : number of offspring created in each iteration
-        mu   : number of parents
-        n    : number of control variables
-    OUTPUTS
-        x_re    : recombined generation locations
-        sig_re  : recombined generation standard deviations
-        alph_re : recombined generation rotation angles
-    """
-
-    # discrete recombination for control variables
-    x_re = np.zeros((lamb, n))
-    for i in range(lamb):
-        # for each offspring choose two parents to inherit from
-        parents = np.random.randint(mu, size=2)
-        for j in range(n):
-            x_re[i][j] = x[random.choice(parents)][j]
-
-    # intermediate recombination for strategy variables
-    sig_re = np.zeros((lamb, n))
-    alph_re = np.zeros((lamb, n, n))
-    for i in range(lamb):
-        parents = np.random.randint(mu, size=2)
-        sig_re[i] = 0.5*(sig[parents[0]] + sig[parents[1]])
-        alph_re[i] = 0.5*(alph[parents[0]] + alph[parents[1]])
-
-    return x_re, sig_re, alph_re
-
-
-def selection(f, x, sig, alph, mu, x_p=None, sig_p=None, alph_p=None, scheme='comma'):
-    """
-    ARGUMENTS
-        f      : objective function
-        x      : generation locations
-        sig    : generation standard deviations
-        alph   : generation rotation angles
-        mu     : number of parents
-        scheme : selection scheme, choose from:
-                    comma - selection is from newly generated offsprint
-                    plus - selection is from offspring and parent population
-    OUTPUTS
-        x_sel    : selected locations for next generation parents
-        sig_sel  : selected generation standard deviations
-        alph_sel : selected generation rotation angles
-        f_sel    : objective function evaluated for x_sel
-    """
-
-    if scheme == 'plus':
-        # join offspring and previous parents into one array
-        x = np.concatenate((x, x_p), axis=0)
-        sig = np.concatenate((sig, sig_p), axis=0)
-        alph = np.concatenate((alph, alph_p), axis=0)
-
-    # evaluate fitness function of all offspring
-    f_x = {i: f(x[i]) for i in range(len(x))}
-    # select best μ contenders for next generation
-    f_sort = dict(sorted(f_x.items(), key=lambda x: x[1])[0:mu])
-
-    x_sel = np.array([x[i] for i in f_sort])
-    sig_sel = np.array([sig[i] for i in f_sort])
-    alph_sel = np.array([alph[i] for i in f_sort])
-    f_sel = np.array([i for i in f_sort.values()])
-
-    return x_sel, sig_sel, alph_sel, f_sel
-
-
 def evo_strat(f, lamb, mu, n, lims, max_it, runtime, scheme):
     """
     ARGUMENTS
@@ -217,6 +95,128 @@ def evo_strat(f, lamb, mu, n, lims, max_it, runtime, scheme):
     return f_opt, x_opt, f_opt_hist, x_hist, f_hist, iters
 
 
+def selection(f, x, sig, alph, mu, x_p=None, sig_p=None, alph_p=None, scheme='comma'):
+    """
+    ARGUMENTS
+        f      : objective function
+        x      : generation locations
+        sig    : generation standard deviations
+        alph   : generation rotation angles
+        mu     : number of parents
+        scheme : selection scheme, choose from:
+                    comma - selection is from newly generated offsprint
+                    plus - selection is from offspring and parent population
+    OUTPUTS
+        x_sel    : selected locations for next generation parents
+        sig_sel  : selected generation standard deviations
+        alph_sel : selected generation rotation angles
+        f_sel    : objective function evaluated for x_sel
+    """
+
+    if scheme == 'plus':
+        # join offspring and previous parents into one array
+        x = np.concatenate((x, x_p), axis=0)
+        sig = np.concatenate((sig, sig_p), axis=0)
+        alph = np.concatenate((alph, alph_p), axis=0)
+
+    # evaluate fitness function of all offspring
+    f_x = {i: f(x[i]) for i in range(len(x))}
+    # select best μ contenders for next generation
+    f_sort = dict(sorted(f_x.items(), key=lambda x: x[1])[0:mu])
+
+    x_sel = np.array([x[i] for i in f_sort])
+    sig_sel = np.array([sig[i] for i in f_sort])
+    alph_sel = np.array([alph[i] for i in f_sort])
+    f_sel = np.array([i for i in f_sort.values()])
+
+    return x_sel, sig_sel, alph_sel, f_sel
+
+
+def recomb(x, sig, alph, lamb, mu, n):
+    """
+    ARGUMENTS
+        x    : generation locations
+        sig  : generation standard deviations
+        alph : generation rotation angles
+        lamb : number of offspring created in each iteration
+        mu   : number of parents
+        n    : number of control variables
+    OUTPUTS
+        x_re    : recombined generation locations
+        sig_re  : recombined generation standard deviations
+        alph_re : recombined generation rotation angles
+    """
+
+    # discrete recombination for control variables
+    x_re = np.zeros((lamb, n))
+    for i in range(lamb):
+        # for each offspring choose two parents to inherit from
+        parents = np.random.randint(mu, size=2)
+        for j in range(n):
+            x_re[i][j] = x[random.choice(parents)][j]
+
+    # intermediate recombination for strategy variables
+    sig_re = np.zeros((lamb, n))
+    alph_re = np.zeros((lamb, n, n))
+    for i in range(lamb):
+        parents = np.random.randint(mu, size=2)
+        sig_re[i] = 0.5*(sig[parents[0]] + sig[parents[1]])
+        alph_re[i] = 0.5*(alph[parents[0]] + alph[parents[1]])
+
+    return x_re, sig_re, alph_re
+
+
+def mutate(x, sig, alph, lamb, n, lims):
+    """
+    ARGUMENTS
+        x    : generation locations
+        sig  : generation standard deviations
+        alph : generation rotation angles
+        lamb : number of offspring created in each iteration
+        n    : number of control variables
+        lims : bounds of the optimisation function in form [min, max]
+    OUTPUTS
+        x_mut    : mutated generation locations
+        sig_mut  : mutated generation standard deviations
+        alph_mut : mutated generation rotation angles
+    """
+
+    # initialise control parameters as per schwefel 1995
+    tau = 1/(2*(n)**0.5)**0.5
+    tau_dash = 1/(2*n)**0.5
+    beta = 0.0873
+
+    # mutation of strategy variables
+    sig_mut = sig * np.exp(tau_dash*np.random.randn(lamb, 1) +
+                           tau*np.random.randn(lamb, n)) # different sized random 
+                                                         # variable arrays are added by broadcasting
+    alph_mut = alph + beta*np.random.randn(lamb, n, n)
+
+    # full covariance matrix is created from mutated alph and sig
+    # cov = np.zeros((lamb, n, n))
+    # for i in range(lamb):
+    #     for j in range(n):
+    #         for k in range(n):
+    #             if j == k:
+    #                 a = sig_mut[i][j]**2
+    #             else:
+    #                 a = (np.tan(2*alph_mut[i][j][k]) * (sig_mut[i][j]**2 - sig_mut[i][k]**2)) / 2
+    #             cov[i][j][k] = a
+
+    # diagonal covariance matrix created from mutated sig
+    cov = np.zeros((lamb, n, n))
+    for i in range(lamb):
+        cov[i] = np.diag(sig_mut[i]**2)
+
+    # create mutated offspring
+    n = np.array([np.random.multivariate_normal(np.zeros(n), cov[i]) for i in range(lamb)])
+
+    x_mut = np.clip(x+n, lims[0], lims[1])  # clip to be within feasible region
+                                   # (-2, 2) chosen for rosenbrook
+
+    return x_mut, sig_mut, alph_mut
+
+
 def visualize(func, history, lims, minima):
     """Visualize the process of optimizing
     ARGUMENTS
@@ -285,11 +285,11 @@ def screenshot(f, history, lims, minima, f_best_hist, i):
     Z = np.array([f([x, y]) for x, y in zip(X, Y)])
 
     # initialize figure
-    fig = plt.figure(figsize=(10, 10))
-    ax1 = fig.add_subplot(221, facecolor='w')
-    ax2 = fig.add_subplot(222, facecolor='w')
-    ax3 = fig.add_subplot(223, facecolor='w')
-    ax4 = fig.add_subplot(224, facecolor='w')
+    fig = plt.figure(figsize=(20, 3.8))
+    ax1 = fig.add_subplot(141, facecolor='w')
+    ax2 = fig.add_subplot(142, facecolor='w')
+    ax3 = fig.add_subplot(143, facecolor='w')
+    ax4 = fig.add_subplot(144, facecolor='w')
 
     # contour and global minimum
     contour1 = ax1.contourf(X, Y, Z, levels=7, cmap="inferno")
@@ -325,24 +325,24 @@ def screenshot(f, history, lims, minima, f_best_hist, i):
     data4 = history[d]
 
     # plot particles
-    ax1.scatter(data1[:, 0], data1[:, 1], marker='x', color='black')
+    ax1.scatter(data1[:, 0], data1[:, 1], marker='x', color='cornsilk')
     for i in range(data1.shape[0]):
-        ax1.plot(data1[i][0], data1[i][1], marker='x', color='black')
+        ax1.plot(data1[i][0], data1[i][1], marker='x', color='cornsilk')
 
     # plot particles
-    ax2.scatter(data2[:, 0], data2[:, 1], marker='x', color='black')
+    ax2.scatter(data2[:, 0], data2[:, 1], marker='x', color='cornsilk')
     for i in range(data2.shape[0]):
-        ax2.plot(data2[i][0], data2[i][1], marker='x', color='black')
+        ax2.plot(data2[i][0], data2[i][1], marker='x', color='cornsilk')
 
     # plot particles
-    ax3.scatter(data3[:, 0], data3[:, 1], marker='x', color='black')
+    ax3.scatter(data3[:, 0], data3[:, 1], marker='x', color='cornsilk')
     for i in range(data3.shape[0]):
-        ax3.plot(data3[i][0], data3[i][1], marker='x', color='black')
+        ax3.plot(data3[i][0], data3[i][1], marker='x', color='cornsilk')
 
     # plot particles
-    ax4.scatter(data4[:, 0], data4[:, 1], marker='x', color='black')
+    ax4.scatter(data4[:, 0], data4[:, 1], marker='x', color='cornsilk')
     for i in range(data4.shape[0]):
-        ax4.plot(data4[i][0], data4[i][1], marker='x', color='black')
+        ax4.plot(data4[i][0], data4[i][1], marker='x', color='cornsilk')
 
     plt.savefig('2D_es.png')
     plt.show()
@@ -350,7 +350,7 @@ def screenshot(f, history, lims, minima, f_best_hist, i):
 
 lims = [-500, 500]
 minima = [-300.3376,  500]
-# f_opt, x_opt, f_opt_hist, x_hist, iters = evo_strat(obj_f2, lamb=100, mu=15, n=2, lims=lims, max_it=100, runtime=0.2, scheme='plus')
+# f_opt, x_opt, f_opt_hist, x_hist, f_hist, iters = evo_strat(obj_f2, lamb=100, mu=15, n=2, lims=lims, max_it=100, runtime=0.2, scheme='plus')
 # screenshot(obj_f2, x_hist, lims, minima, f_opt_hist, iters)
 
 #visualize(obj_f, x_hist, lims, minima)
